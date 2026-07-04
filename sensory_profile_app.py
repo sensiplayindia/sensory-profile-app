@@ -259,6 +259,36 @@ if show_form:
         
         st.dataframe(pd.DataFrame(quad_summary_data), use_container_width=True)
         st.success(f"🎉 Scoring completely finalized for {child_name}!")
+        from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import io
+
+def create_pdf(name, sec_data, quad_data):
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    c.drawString(100, 750, f"Sensory Profile Report for: {name}")
+    c.drawString(100, 730, "--------------------------------------------------")
+    
+    y = 700
+    c.drawString(100, y, "Section Summary:")
+    y -= 20
+    for row in sec_data:
+        c.drawString(120, y, f"{row['Sensory / Behavioral Section Category']}: {row['Child's Raw Score Total']}")
+        y -= 15
+    
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+# Add this button where you display the results
+if st.button("📥 Export Report to PDF"):
+    pdf_file = create_pdf(child_name, sec_summary_data, quad_summary_data)
+    st.download_button(
+        label="Click to Download PDF",
+        data=pdf_file,
+        file_name=f"{child_name}_Sensory_Report.pdf",
+        mime="application/pdf"
+    )
 
         # --- LOCAL FILE STORAGE ENGINE ---
         new_record = {
