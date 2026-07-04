@@ -1,23 +1,26 @@
 import streamlit as st
 import pandas as pd
 import os
+import io
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
 st.set_page_config(page_title="CHILD Sensory Profile 2 Assessment", layout="wide")
 
-# File where results will be saved automatically
+# Local storage configuration 
 DATA_FILE = "saved_parent_results.csv"
 
 # --- PARENT MOBILE NUMBER DATABASE ---
 MOBILE_DATABASE = {
-    "9820231375": "Kiaan Gada",
+    "9820012345": "Kiaan Gada",
     "9819987654": "Aarav Mehta",
     "9112345678": "Ananya Sharma"
 }
 
-# Dictionary to hold the radio button selections
 user_responses = {}
 
-# Helper function to load previously saved results
 def load_saved_results(mobile_number):
     if os.path.exists(DATA_FILE):
         try:
@@ -35,7 +38,7 @@ def check_mobile_login():
         return True
 
     st.subheader("📲 Parent Login Portal")
-    st.markdown("Please log in with your registered mobile number to access your child's profile.")
+    st.markdown("Please log in with your registered mobile number to access your child's sensory profile questionnaire.")
     
     parent_input = st.text_input("Enter Registered Mobile Number:", placeholder="e.g., 9820012345")
     
@@ -63,38 +66,126 @@ parent_input = st.session_state["parent_mobile"]
 st.title("🧩 CHILD Sensory Profile 2™ Online Assessment Portal")
 st.success(f"🔓 Welcome! Secure session active for: **{verified_child}**")
 
-# Check history
+# Check historical records
 saved_record = load_saved_results(parent_input)
 
+# --- PDF GENERATION ENGINE ---
+def generate_report_pdf(child_name, date_str, sec_list, quad_list):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'DocTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=18, textColor=colors.HexColor('#2F855A'), spaceAfter=15
+    )
+    section_style = ParagraphStyle(
+        'SectionHeader', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=13, textColor=colors.HexColor('#2D3748'), spaceBefore=15, spaceAfter=10
+    )
+    body_style = ParagraphStyle(
+        'Body', parent=styles['Normal'], fontName='Helvetica', fontSize=10, textColor=colors.HexColor('#4A5568')
+    )
+    bold_body = ParagraphStyle(
+        'BoldBody', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=10, textColor=colors.HexColor('#2D3748')
+    )
+    
+    # Header Information
+    story.append(Paragraph("🧩 CHILD Sensory Profile 2™ Assessment Report", title_style))
+    story.append(Paragraph(f"<b>Child's Name:</b> {child_name}", body_style))
+    story.append(Paragraph(f"<b>Assessment Date:</b> {date_str}", body_style))
+    story.append(Spacer(1, 15))
+    
+    # 1. Section Scores Table
+    story.append(Paragraph("1. Sensory & Behavioral Section Breakdown", section_style))
+    sec_table_data = [[Paragraph("<b>Sensory / Behavioral Category</b>", bold_body), Paragraph("<b>Raw Score</b>", bold_body), Paragraph("<b>Max</b>", bold_body)]]
+    for row in sec_list:
+        sec_table_data.append([
+            Paragraph(str(row.get("Sensory / Behavioral Section Category")), body_style),
+            Paragraph(str(row.get("Child's Raw Score Total")), body_style),
+            Paragraph(str(row.get("Maximum Possible Score")), body_style)
+        ])
+    
+    t1 = Table(sec_table_data, colWidths=[280, 120, 100])
+    t1.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F7FAFC')),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+    ]))
+    story.append(t1)
+    story.append(Spacer(1, 20))
+    
+    # 2. Quadrant Table
+    story.append(Paragraph("2. Sensory Pattern Quadrant Grid Placement", section_style))
+    quad_table_data = [[
+        Paragraph("<b>Sensory Quadrant Profile</b>", bold_body), 
+        Paragraph("<b>Total Score</b>", bold_body), 
+        Paragraph("<b>Normative Range</b>", bold_body), 
+        Paragraph("<b>Placement Status</b>", bold_body)
+    ]]
+    for row in quad_list:
+        quad_table_data.append([
+            Paragraph(str(row.get("Sensory Quadrant Profile Pattern")), body_style),
+            Paragraph(str(row.get("Total Score")), body_style),
+            Paragraph(str(row.get("Normative Range Benchmark")), body_style),
+            Paragraph(f"<b>{str(row.get('Clinical Placement Status'))}</b>", body_style)
+        ])
+        
+    t2 = Table(quad_table_data, colWidths=[180, 80, 110, 130])
+    t2.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#E6FFFA')),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
+    ]))
+    story.append(t2)
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+# --- VIEW RENDER LOGIC ---
 if saved_record is not None:
     st.markdown("### 📋 Previously Saved History Found")
     st.info(f"Last assessment submitted on: **{saved_record['Timestamp']}**")
     
+    history_sec = [
+        {"Sensory / Behavioral Section Category": "Auditory Processing", "Child's Raw Score Total": saved_record["Auditory Total"], "Maximum Possible Score": "/ 40"},
+        {"Sensory / Behavioral Section Category": "Visual Processing", "Child's Raw Score Total": saved_record["Visual Total"], "Maximum Possible Score": "/ 30"},
+        {"Sensory / Behavioral Section Category": "Touch Processing", "Child's Raw Score Total": saved_record["Touch Total"], "Maximum Possible Score": "/ 55"},
+        {"Sensory / Behavioral Section Category": "Movement Processing", "Child's Raw Score Total": saved_record["Movement Total"], "Maximum Possible Score": "/ 40"},
+        {"Sensory / Behavioral Section Category": "Body Position Processing", "Child's Raw Score Total": saved_record["Body Position Total"], "Maximum Possible Score": "/ 40"},
+        {"Sensory / Behavioral Section Category": "Oral Sensory Processing", "Child's Raw Score Total": saved_record["Oral Total"], "Maximum Possible Score": "/ 50"},
+        {"Sensory / Behavioral Section Category": "Conduct Associated with SP", "Child's Raw Score Total": saved_record["Conduct Total"], "Maximum Possible Score": "/ 45"},
+        {"Sensory / Behavioral Section Category": "Social Emotional Responses", "Child's Raw Score Total": saved_record["Social Total"], "Maximum Possible Score": "/ 70"},
+        {"Sensory / Behavioral Section Category": "Attentional Responses", "Child's Raw Score Total": saved_record["Attentional Total"], "Maximum Possible Score": "/ 50"},
+    ]
+    
+    history_quad = [
+        {"Sensory Quadrant Profile Pattern": "Seeking / Seeker", "Total Score": saved_record["Seeking Score"], "Normative Range Benchmark": "20 - 47", "Clinical Placement Status": saved_record["Seeking Status"]},
+        {"Sensory Quadrant Profile Pattern": "Avoiding / Avoider", "Total Score": saved_record["Avoiding Score"], "Normative Range Benchmark": "21 - 46", "Clinical Placement Status": saved_record["Avoiding Status"]},
+        {"Sensory Quadrant Profile Pattern": "Sensitivity / Sensor", "Total Score": saved_record["Sensitivity Score"], "Normative Range Benchmark": "18 - 42", "Clinical Placement Status": saved_record["Sensitivity Status"]},
+        {"Sensory Quadrant Profile Pattern": "Registration / Bystander", "Total Score": saved_record["Registration Score"], "Normative Range Benchmark": "19 - 43", "Clinical Placement Status": saved_record["Registration Status"]},
+    ]
+    
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("1️⃣ Sensory & Behavioral Section Breakdown")
-        history_sec = [
-            {"Sensory / Behavioral Section Category": "Auditory Processing", "Child's Raw Score Total": saved_record["Auditory Total"], "Maximum Possible Score": "/ 40"},
-            {"Sensory / Behavioral Section Category": "Visual Processing", "Child's Raw Score Total": saved_record["Visual Total"], "Maximum Possible Score": "/ 30"},
-            {"Sensory / Behavioral Section Category": "Touch Processing", "Child's Raw Score Total": saved_record["Touch Total"], "Maximum Possible Score": "/ 55"},
-            {"Sensory / Behavioral Section Category": "Movement Processing", "Child's Raw Score Total": saved_record["Movement Total"], "Maximum Possible Score": "/ 40"},
-            {"Sensory / Behavioral Section Category": "Body Position Processing", "Child's Raw Score Total": saved_record["Body Position Total"], "Maximum Possible Score": "/ 40"},
-            {"Sensory / Behavioral Section Category": "Oral Sensory Processing", "Child's Raw Score Total": saved_record["Oral Total"], "Maximum Possible Score": "/ 50"},
-            {"Sensory / Behavioral Section Category": "Conduct Associated with SP", "Child's Raw Score Total": saved_record["Conduct Total"], "Maximum Possible Score": "/ 45"},
-            {"Sensory / Behavioral Section Category": "Social Emotional Responses", "Child's Raw Score Total": saved_record["Social Total"], "Maximum Possible Score": "/ 70"},
-            {"Sensory / Behavioral Section Category": "Attentional Responses", "Child's Raw Score Total": saved_record["Attentional Total"], "Maximum Possible Score": "/ 50"},
-        ]
         st.table(pd.DataFrame(history_sec))
-        
     with col2:
         st.subheader("2️⃣ Sensory Pattern Quadrant Grid Placement")
-        history_quad = [
-            {"Sensory Quadrant Profile Pattern": "Seeking / Seeker", "Total Score": saved_record["Seeking Score"], "Normative Range Benchmark": "20 - 47", "Clinical Placement Status": saved_record["Seeking Status"]},
-            {"Sensory Quadrant Profile Pattern": "Avoiding / Avoider", "Total Score": saved_record["Avoiding Score"], "Normative Range Benchmark": "21 - 46", "Clinical Placement Status": saved_record["Avoiding Status"]},
-            {"Sensory Quadrant Profile Pattern": "Sensitivity / Sensor", "Total Score": saved_record["Sensitivity Score"], "Normative Range Benchmark": "18 - 42", "Clinical Placement Status": saved_record["Sensitivity Status"]},
-            {"Sensory Quadrant Profile Pattern": "Registration / Bystander", "Total Score": saved_record["Registration Score"], "Normative Range Benchmark": "19 - 43", "Clinical Placement Status": saved_record["Registration Status"]},
-        ]
         st.dataframe(pd.DataFrame(history_quad), use_container_width=True)
+    
+    # PDF download button with dynamic custom styles
+    pdf_bytes = generate_report_pdf(verified_child, str(saved_record['Timestamp']), history_sec, history_quad)
+    st.download_button(
+        label="📥 Download Clinical Report PDF",
+        data=pdf_bytes,
+        file_name=f"{verified_child.replace(' ', '_')}_Sensory_Profile_Report.pdf",
+        mime="application/pdf"
+    )
         
     st.markdown("---")
     show_form = st.checkbox("🔄 Need to re-take the assessment or overwrite these scores? Check this box to load a blank form.")
@@ -234,7 +325,7 @@ if show_form:
                 quad_totals[item["quad"]] += score
 
         st.subheader("1️⃣ Sensory & Behavioral Section Breakdown")
-        sec_summary_data = [{"Sensory / Behavioral Section Category": sec, "Child's Raw Score Total": f"{score}", "Maximum Possible Score": f"/ {max_scores.get(sec, 0)}"} for sec, score in sec_totals.items()]
+        sec_summary_data = [{"Sensory / Behavioral Section Category": sec, "Child's Raw Score Total": str(score), "Maximum Possible Score": f"/ {max_scores.get(sec, 0)}"} for sec, score in sec_totals.items()]
         st.table(pd.DataFrame(sec_summary_data))
 
         st.subheader("2️⃣ Sensory Pattern Quadrant Grid Placement")
@@ -255,44 +346,15 @@ if show_form:
 
         for quad, score in quad_totals.items():
             status = get_cutoff_status(quad, score)
-            quad_summary_data.append({"Sensory Quadrant Profile Pattern": quad_names[quad], "Total Score": f"{score}", "Normative Range Benchmark": quad_norms[quad], "Clinical Placement Status": status})
+            quad_summary_data.append({"Sensory Quadrant Profile Pattern": quad_names[quad], "Total Score": str(score), "Normative Range Benchmark": quad_norms[quad], "Clinical Placement Status": status})
         
         st.dataframe(pd.DataFrame(quad_summary_data), use_container_width=True)
         st.success(f"🎉 Scoring completely finalized for {child_name}!")
-        from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-import io
 
-def create_pdf(name, sec_data, quad_data):
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    c.drawString(100, 750, f"Sensory Profile Report for: {name}")
-    c.drawString(100, 730, "--------------------------------------------------")
-    
-    y = 700
-    c.drawString(100, y, "Section Summary:")
-    y -= 20
-    for row in sec_data:
-        c.drawString(120, y, f"{row['Sensory / Behavioral Section Category']}: {row['Child's Raw Score Total']}")
-        y -= 15
-    
-    c.save()
-    buffer.seek(0)
-    return buffer
-
-# Add this button where you display the results
-if st.button("📥 Export Report to PDF"):
-    pdf_file = create_pdf(child_name, sec_summary_data, quad_summary_data)
-    st.download_button(
-        label="Click to Download PDF",
-        data=pdf_file,
-        file_name=f"{child_name}_Sensory_Report.pdf",
-        mime="application/pdf"
-    )
-
-        # --- LOCAL FILE STORAGE ENGINE ---
+        # --- LOCAL FILE STORAGE ENGINE WITH INDIA CLOCK CONFIG ---
+        timestamp_ist = (pd.Timestamp.now(tz='UTC').tz_convert('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M:%S")
         new_record = {
-            "Timestamp": (pd.Timestamp.now(tz='UTC').tz_convert('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M:%S"),
+            "Timestamp": timestamp_ist,
             "Mobile Number": str(parent_input),
             "Child Name": str(child_name),
             "Auditory Total": int(sec_totals["Auditory Processing"]),
