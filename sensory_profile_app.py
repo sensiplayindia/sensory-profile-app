@@ -2,6 +2,45 @@ import streamlit as st
 
 st.set_page_config(page_title="CHILD Sensory Profile 2 Assessment", layout="wide")
 
+# --- AUTHENTICATION CHECK ---
+def check_password():
+    """Returns True if the user entered the correct password."""
+    def password_entered():
+        if st.session_state["password"] == st.secrets["password"]:
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # remove password from session state for security
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        # First run, show input box
+        st.text_input(
+            "🔑 Enter Access Key to Unlock Assessment Form", 
+            type="password", 
+            on_change=password_entered, 
+            key="password"
+        )
+        st.info("Parents: Please obtain the security key from your provider to access this evaluation portal.")
+        return False
+    elif not st.session_state["password_correct"]:
+        # Password incorrect, show input box + error
+        st.text_input(
+            "🔑 Enter Access Key to Unlock Assessment Form", 
+            type="password", 
+            on_change=password_entered, 
+            key="password"
+        )
+        st.error("❌ Incorrect Access Key. Please try again or contact your provider.")
+        return False
+    else:
+        # Password correct
+        return True
+
+# If the password is not correct, stop running the rest of the app code
+if not check_password():
+    st.stop()
+
+# --- ACTUAL APP CODE STARTS HERE ---
 st.title("🧩 CHILD Sensory Profile 2™ Online Assessment Portal")
 st.markdown("### Caregiver Questionnaire (Ages 3:0 to 14:11 years)")
 st.markdown("**Author:** Winnie Dunn, PhD, OTR, FAOTA")
