@@ -7,7 +7,7 @@ st.set_page_config(page_title="CHILD Sensory Profile 2 Assessment", layout="wide
 # Update this dictionary to add or change parents. 
 # Keep numbers in quotes "" to prevent formatting bugs.
 MOBILE_DATABASE = {
-    "9820012345": "Kiaan Gada",
+    "9920892121": "Kiaan Gada",
     "9819987654": "Aarav Mehta",
     "9112345678": "Ananya Sharma"
 }
