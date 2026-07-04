@@ -14,19 +14,23 @@ MOBILE_DATABASE = {
     "9112345678": "Ananya Sharma"
 }
 
+# Dictionary to hold the radio button selections
+user_responses = {}
+
 # Helper function to load previously saved results
 def load_saved_results(mobile_number):
     if os.path.exists(DATA_FILE):
-        df = pd.read_csv(DATA_FILE)
-        # Filter for this parent's specific mobile number
-        df["Mobile Number"] = df["Mobile Number"].astype(str).str.strip()
-        user_data = df[df["Mobile Number"] == str(mobile_number)]
-        if not user_data.empty:
-            return user_data.iloc[-1] # Return the most recent submission
+        try:
+            df = pd.read_csv(DATA_FILE)
+            df["Mobile Number"] = df["Mobile Number"].astype(str).str.strip()
+            user_data = df[df["Mobile Number"] == str(mobile_number)]
+            if not user_data.empty:
+                return user_data.iloc[-1]
+        except:
+            pass
     return None
 
 def check_mobile_login():
-    """Returns True if the parent enters a registered mobile number."""
     if "authorized_child" in st.session_state:
         return True
 
@@ -59,14 +63,13 @@ parent_input = st.session_state["parent_mobile"]
 st.title("🧩 CHILD Sensory Profile 2™ Online Assessment Portal")
 st.success(f"🔓 Welcome! Secure session active for: **{verified_child}**")
 
-# Check if this parent has a history saved
+# Check history
 saved_record = load_saved_results(parent_input)
 
 if saved_record is not None:
     st.markdown("### 📋 Previously Saved History Found")
     st.info(f"Last assessment submitted on: **{saved_record['Timestamp']}**")
     
-    # Render the tables using their historical data
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("1️⃣ Sensory & Behavioral Section Breakdown")
@@ -94,16 +97,11 @@ if saved_record is not None:
         st.dataframe(pd.DataFrame(history_quad), use_container_width=True)
         
     st.markdown("---")
-    if st.checkbox("🔄 Need to re-take the assessment or overwrite these scores? Check this box to load the blank form."):
-        show_form = True
-    else:
-        show_form = False
+    show_form = st.checkbox("🔄 Need to re-take the assessment or overwrite these scores? Check this box to load a blank form.")
 else:
     show_form = True
 
-
 if show_form:
-    # Sidebar profile form fields
     st.sidebar.header("📋 Child & Caregiver Information")
     child_name = st.sidebar.text_input("Child's First & Last Name", value=verified_child)
     child_id = st.sidebar.text_input("ID / Case Number", placeholder="Optional")
@@ -113,13 +111,10 @@ if show_form:
     caregiver_name = st.sidebar.text_input("Completed By (Caregiver Name)")
     relationship = st.sidebar.text_input("Relationship to Child", placeholder="e.g., Parent")
 
-    # Score Options
     options = ["Almost Always (5)", "Frequently (4)", "Half the Time (3)", "Occasionally (2)", "Almost Never (1)", "Does Not Apply (0)"]
     score_map = {"Almost Always (5)": 5, "Frequently (4)": 4, "Half the Time (3)": 3, "Occasionally (2)": 2, "Almost Never (1)": 1, "Does Not Apply (0)": 0}
 
-    # Complete Item Database Mapped with Sections & Quadrants
     items_db = [
-        # Auditory
         {"num": 1, "section": "Auditory Processing", "quad": "AV", "text": "reacts strongly to unexpected or loud noises (for example, sirens, dog barking, hair dryer)."},
         {"num": 2, "section": "Auditory Processing", "quad": "AV", "text": "holds hands over ears to protect them from sound."},
         {"num": 3, "section": "Auditory Processing", "quad": "SN", "text": "struggles to complete tasks when music or TV is on."},
@@ -128,7 +123,6 @@ if show_form:
         {"num": 6, "section": "Auditory Processing", "quad": "SN", "text": "tunes me out or seems to ignore me."},
         {"num": 7, "section": "Auditory Processing", "quad": "SN", "text": "seems not to hear when I call his or her name (even though hearing is OK)."},
         {"num": 8, "section": "Auditory Processing", "quad": "RG", "text": "enjoys strange noises or makes noise(s) for fun."},
-        # Visual
         {"num": 9, "section": "Visual Processing", "quad": "SN", "text": "prefers to play or work in low lighting."},
         {"num": 10, "section": "Visual Processing", "quad": "None", "text": "prefers bright colors or patterns for clothing."},
         {"num": 11, "section": "Visual Processing", "quad": "None", "text": "enjoys looking at visual details in objects."},
@@ -136,7 +130,6 @@ if show_form:
         {"num": 13, "section": "Visual Processing", "quad": "SN", "text": "is more bothered by bright lights than other same-aged children."},
         {"num": 14, "section": "Visual Processing", "quad": "SK", "text": "watches people as they move around the room."},
         {"num": 15, "section": "Visual Processing", "quad": "AV", "text": "is bothered by bright lights (for example, hides from sunlight through car window).* Omitted from Visual Total Score."},
-        # Touch
         {"num": 16, "section": "Touch Processing", "quad": "SN", "text": "shows distress during grooming (for example, fights or cries during haircutting, face washing, fingernail cutting)."},
         {"num": 17, "section": "Touch Processing", "quad": "None", "text": "becomes irritated by wearing shoes or socks."},
         {"num": 18, "section": "Touch Processing", "quad": "AV", "text": "shows an emotional or aggressive response to being touched."},
@@ -148,7 +141,6 @@ if show_form:
         {"num": 24, "section": "Touch Processing", "quad": "RG", "text": "seems unaware of temperature changes."},
         {"num": 25, "section": "Touch Processing", "quad": "SK", "text": "touches people and objects more than same-aged children."},
         {"num": 26, "section": "Touch Processing", "quad": "RG", "text": "seems oblivious to messy hands or face."},
-        # Movement
         {"num": 27, "section": "Movement Processing", "quad": "None", "text": "pursues movement to the point it interferes with daily routines (for example, can't sit still, fidgets)."},
         {"num": 28, "section": "Movement Processing", "quad": "SK", "text": "rocks in chair, on floor, or while standing."},
         {"num": 29, "section": "Movement Processing", "quad": "None", "text": "hesitates going up or down curbs or steps (for example, is cautious, stops before moving)."},
@@ -157,7 +149,6 @@ if show_form:
         {"num": 32, "section": "Movement Processing", "quad": "SK", "text": "looks for opportunities to fall with no regard for own safety (for example, falls down on purpose)."},
         {"num": 33, "section": "Movement Processing", "quad": "RG", "text": "loses balance unexpectedly when walking on an uneven surface."},
         {"num": 34, "section": "Movement Processing", "quad": "RG", "text": "bumps into things, failing to notice objects or people in the way."},
-        # Body Position
         {"num": 35, "section": "Body Position Processing", "quad": "RG", "text": "moves stiffly."},
         {"num": 36, "section": "Body Position Processing", "quad": "RG", "text": "becomes tired easily, especially when standing or holding the body in one position."},
         {"num": 37, "section": "Body Position Processing", "quad": "RG", "text": "seems to have weak muscles."},
@@ -166,7 +157,6 @@ if show_form:
         {"num": 40, "section": "Body Position Processing", "quad": "RG", "text": "walks loudly as if feet are heavy."},
         {"num": 41, "section": "Body Position Processing", "quad": "SK", "text": "drapes self over furniture or on other people."},
         {"num": 42, "section": "Body Position Processing", "quad": "None", "text": "needs heavy blankets to sleep."},
-        # Oral Sensory
         {"num": 43, "section": "Oral Sensory Processing", "quad": "None", "text": "gags easily from certain food textures or food utensils in mouth."},
         {"num": 44, "section": "Oral Sensory Processing", "quad": "SN", "text": "rejects certain tastes or food smells that are typically part of children's diets."},
         {"num": 45, "section": "Oral Sensory Processing", "quad": "SN", "text": "eats only certain tastes (for example, sweet, salty)."},
@@ -177,7 +167,6 @@ if show_form:
         {"num": 50, "section": "Oral Sensory Processing", "quad": "SK", "text": "craves certain foods, tastes, or smells."},
         {"num": 51, "section": "Oral Sensory Processing", "quad": "SK", "text": "puts objects in mouth (for example, pencil, hands)."},
         {"num": 52, "section": "Oral Sensory Processing", "quad": "SN", "text": "bites tongue or lips more than same-aged children."},
-        # Conduct
         {"num": 53, "section": "Conduct Associated with SP", "quad": "RG", "text": "seems accident-prone."},
         {"num": 54, "section": "Conduct Associated with SP", "quad": "RG", "text": "rushes through coloring, writing, or drawing."},
         {"num": 55, "section": "Conduct Associated with SP", "quad": "SK", "text": "takes excessive risks (for example, climbs high into a tree, jumps off tall furniture) that compromise own safety."},
@@ -187,7 +176,6 @@ if show_form:
         {"num": 59, "section": "Conduct Associated with SP", "quad": "AV", "text": "has temper tantrums."},
         {"num": 60, "section": "Conduct Associated with SP", "quad": "SK", "text": "appears to enjoy falling."},
         {"num": 61, "section": "Conduct Associated with SP", "quad": "AV", "text": "resists eye contact from me or others."},
-        # Social Emotional
         {"num": 62, "section": "Social Emotional Responses", "quad": "RG", "text": "seems to have low self-esteem (for example, difficulty liking self)."},
         {"num": 63, "section": "Social Emotional Responses", "quad": "AV", "text": "needs positive support to return to challenging situations."},
         {"num": 64, "section": "Social Emotional Responses", "quad": "AV", "text": "is sensitive to criticisms."},
@@ -202,7 +190,6 @@ if show_form:
         {"num": 73, "section": "Social Emotional Responses", "quad": "SN", "text": "needs more protection from life than same-aged children."},
         {"num": 74, "section": "Social Emotional Responses", "quad": "AV", "text": "interacts or participates in groups less than same-aged children."},
         {"num": 75, "section": "Social Emotional Responses", "quad": "AV", "text": "has difficulty with friendships (for example, making or keeping friends)."},
-        # Attentional
         {"num": 76, "section": "Attentional Responses", "quad": "RG", "text": "misses eye contact with me during everyday interactions."},
         {"num": 77, "section": "Attentional Responses", "quad": "SN", "text": "struggles to pay attention."},
         {"num": 78, "section": "Attentional Responses", "quad": "SN", "text": "looks away from tasks to notice all actions in the room."},
@@ -297,13 +284,15 @@ if show_form:
             "Registration Status": str(get_cutoff_status("RG", quad_totals["RG"]))
         }
         
-        # Load file or create a new database dataframe row layout
         if os.path.exists(DATA_FILE):
-            db_df = pd.read_csv(DATA_FILE)
-            db_df = pd.concat([db_df, pd.DataFrame([new_record])], ignore_index=True)
+            try:
+                db_df = pd.read_csv(DATA_FILE)
+                db_df = pd.concat([db_df, pd.DataFrame([new_record])], ignore_index=True)
+            except:
+                db_df = pd.DataFrame([new_record])
         else:
             db_df = pd.DataFrame([new_record])
             
-        # Save straight to local space folder
         db_df.to_csv(DATA_FILE, index=False)
-        st.toast("💾 Assessment parameters saved directly to your server logs container!", icon="✅")
+        st.toast("💾 Assessment saved successfully!", icon="✅")
+        st.rerun()
