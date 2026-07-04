@@ -9,7 +9,7 @@ MOBILE_DATABASE = {
     "9820012345": "Kiaan Gada",
     "9819987654": "Aarav Mehta",
     "9112345678": "Ananya Sharma",
-    "9820892771": "kiaan shah",
+    "9820892771": "kiaan shah"
 }
 
 def check_mobile_login():
