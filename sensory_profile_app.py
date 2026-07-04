@@ -1,13 +1,12 @@
 import streamlit as st
 import pandas as pd
+import requests
 
 st.set_page_config(page_title="CHILD Sensory Profile 2 Assessment", layout="wide")
 
 # --- PARENT MOBILE NUMBER DATABASE ---
-# Update this dictionary to add or change parents. 
-# Keep numbers in quotes "" to prevent formatting bugs.
 MOBILE_DATABASE = {
-    "9920892121": "Kiaan Gada",
+    "9820012345": "Kiaan Gada",
     "9819987654": "Aarav Mehta",
     "9112345678": "Ananya Sharma"
 }
@@ -23,7 +22,6 @@ def check_mobile_login():
     parent_input = st.text_input("Enter Registered Mobile Number:", placeholder="e.g., 9820012345")
     
     if st.button("Log In"):
-        # Clean up input by removing any spaces or dashes parents might accidentally type
         clean_number = parent_input.replace(" ", "").replace("-", "").strip()
         
         if clean_number in MOBILE_DATABASE:
@@ -160,7 +158,6 @@ items_db = [
     {"num": 86, "section": "Attentional Responses", "quad": "RG", "text": "seems unaware when people come into the room.* Omitted from Attentional Total Score."}
 ]
 
-# Set up form view split by section name
 unique_sections = list(dict.fromkeys([item["section"] for item in items_db]))
 tabs = st.tabs(unique_sections)
 
@@ -187,7 +184,7 @@ if st.button("📊 Calculate & Generate Diagnostic Profile Report", type="primar
     st.markdown("---")
     st.header("🏁 Page 7: Score Summary & Quadrant Grid Results")
     
-    # Calculate Scores
+    # Calculate Data
     sec_totals = {sec: 0 for sec in unique_sections}
     quad_totals = {"SK": 0, "AV": 0, "SN": 0, "RG": 0}
     max_scores = {
@@ -232,10 +229,10 @@ if st.button("📊 Calculate & Generate Diagnostic Profile Report", type="primar
 
     quad_summary_data = []
     quad_names = {
-        "SK": "Seeking / Seeker (High Threshold, Active Strategy)",
-        "AV": "Avoiding / Avoider (Low Threshold, Active Strategy)",
-        "SN": "Sensitivity / Sensor (Low Threshold, Passive Strategy)",
-        "RG": "Registration / Bystander (High Threshold, Passive Strategy)"
+        "SK": "Seeking / Seeker",
+        "AV": "Avoiding / Avoider",
+        "SN": "Sensitivity / Sensor",
+        "RG": "Registration / Bystander"
     }
     quad_norms = {"SK": "20 - 47", "AV": "21 - 46", "SN": "18 - 42", "RG": "19 - 43"}
 
@@ -244,48 +241,41 @@ if st.button("📊 Calculate & Generate Diagnostic Profile Report", type="primar
         quad_summary_data.append({
             "Sensory Quadrant Profile Pattern": quad_names[quad],
             "Total Score": f"{score}",
-            "Normative Range Benchmark (Typical Majority)": quad_norms[quad],
+            "Normative Range Benchmark": quad_norms[quad],
             "Clinical Placement Status": status
         })
     
     st.dataframe(pd.DataFrame(quad_summary_data), use_container_width=True)
     st.success(f"🎉 Scoring completely finalized for {child_name}!")
 
-    # --- AUTOMATIC GOOGLE SHEET DATABASE LOGGING ---
-    try:
-        from streamlit_gsheets import GSheetsConnection
-        
-        # Connect to your Google Sheet securely
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        
-        # Read the existing database rows
-        existing_data = conn.read(worksheet="Sheet1", ttl=0)
-        
-        # Create a dictionary for the parent's new entry
-        new_row = {
-            "Timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Mobile Number": str(parent_input),
-            "Child Name": child_name,
-            "Auditory Total": sec_totals["Auditory Processing"],
-            "Visual Total": sec_totals["Visual Processing"],
-            "Touch Total": sec_totals["Touch Processing"],
-            "Movement Total": sec_totals["Movement Processing"],
-            "Body Position Total": sec_totals["Body Position Processing"],
-            "Oral Total": sec_totals["Oral Sensory Processing"],
-            "Conduct Total": sec_totals["Conduct Associated with SP"],
-            "Social Total": sec_totals["Social Emotional Responses"],
-            "Attentional Total": sec_totals["Attentional Responses"],
-            "Seeking Status": get_cutoff_status("SK", quad_totals["SK"]),
-            "Avoiding Status": get_cutoff_status("AV", quad_totals["AV"]),
-            "Sensitivity Status": get_cutoff_status("SN", quad_totals["SN"]),
-            "Registration Status": get_cutoff_status("RG", quad_totals["RG"])
+    # --- SIMPLIFIED CLOUD DATABASE INJECTION ENGINE ---
+    # Fetch deployment webhook tracking key from secrets configuration box
+    webhook_url = st.secrets.get("webhook_url", None)
+    
+    if webhook_url:
+        payload = {
+            "timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "mobile": str(parent_input),
+            "child": str(child_name),
+            "auditory": int(sec_totals["Auditory Processing"]),
+            "visual": int(sec_totals["Visual Processing"]),
+            "touch": int(sec_totals["Touch Processing"]),
+            "movement": int(sec_totals["Movement Processing"]),
+            "body": int(sec_totals["Body Position Processing"]),
+            "oral": int(sec_totals["Oral Sensory Processing"]),
+            "conduct": int(sec_totals["Conduct Associated with SP"]),
+            "social": int(sec_totals["Social Emotional Responses"]),
+            "attentional": int(sec_totals["Attentional Responses"]),
+            "seeking_status": str(get_cutoff_status("SK", quad_totals["SK"])),
+            "avoiding_status": str(get_cutoff_status("AV", quad_totals["AV"])),
+            "sensitivity_status": str(get_cutoff_status("SN", quad_totals["SN"])),
+            "registration_status": str(get_cutoff_status("RG", quad_totals["RG"]))
         }
-        
-        # Append the new submission to your database sheet
-        updated_df = pd.concat([existing_data, pd.DataFrame([new_row])], ignore_index=True)
-        conn.update(worksheet="Sheet1", data=updated_df)
-        
-        st.toast("💾 Results successfully saved to your master Google Sheet database!", icon="✅")
-        
-    except Exception as e:
-        st.info("ℹ️ Local sandbox/test mode active. To record submissions to a cloud spreadsheet, add your spreadsheet URL under [connections.gsheets] inside your Streamlit Dashboard Secrets panel.")
+        try:
+            response = requests.post(webhook_url, json=payload, timeout=10)
+            if response.status_code == 200:
+                st.toast("💾 Results successfully saved to your master database!", icon="✅")
+            else:
+                st.error("⚠️ Connection handshake failed. Please verify secret endpoint alignment configuration.")
+        except Exception:
+            st.error("❌ Network transmission timeout. Retrying link pipeline synchronization...")
