@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 st.set_page_config(page_title="CHILD Sensory Profile 2 Assessment", layout="wide")
 
@@ -6,7 +7,7 @@ st.set_page_config(page_title="CHILD Sensory Profile 2 Assessment", layout="wide
 # Update this dictionary to add or change parents. 
 # Keep numbers in quotes "" to prevent formatting bugs.
 MOBILE_DATABASE = {
-    "9920892121": "Kiaan Gada",
+    "9820012345": "Kiaan Gada",
     "9819987654": "Aarav Mehta",
     "9112345678": "Ananya Sharma"
 }
@@ -27,6 +28,7 @@ def check_mobile_login():
         
         if clean_number in MOBILE_DATABASE:
             st.session_state["authorized_child"] = MOBILE_DATABASE[clean_number]
+            st.session_state["parent_mobile"] = clean_number
             st.rerun()
         elif clean_number == "":
             st.warning("Please enter your mobile number.")
@@ -40,6 +42,8 @@ if not check_mobile_login():
 
 # --- THE APP UNLOCKS HERE AFTER VALID LOGIN ---
 verified_child = st.session_state["authorized_child"]
+parent_input = st.session_state["parent_mobile"]
+
 st.title("🧩 CHILD Sensory Profile 2™ Online Assessment Portal")
 st.success(f"🔓 Welcome! Secure session active for: **{verified_child}**")
 
@@ -173,17 +177,24 @@ for index, sec_name in enumerate(unique_sections):
             choice = st.radio(
                 f"**Item {item['num']}:** {item['text']}", 
                 options, 
-                index=5, # Default picker points to 'Does Not Apply'
+                index=5, 
                 key=key, 
                 horizontal=True
             )
             user_responses[item['num']] = score_map[choice]
 
 if st.button("📊 Calculate & Generate Diagnostic Profile Report", type="primary"):
-    st.header("🏁 Child Profile Diagnostic Summary Results")
+    st.markdown("---")
+    st.header("🏁 Page 7: Score Summary & Quadrant Grid Results")
     
+    # Calculate Scores
     sec_totals = {sec: 0 for sec in unique_sections}
     quad_totals = {"SK": 0, "AV": 0, "SN": 0, "RG": 0}
+    max_scores = {
+        "Auditory Processing": 40, "Visual Processing": 30, "Touch Processing": 55,
+        "Movement Processing": 40, "Body Position Processing": 40, "Oral Sensory Processing": 50,
+        "Conduct Associated with SP": 45, "Social Emotional Responses": 70, "Attentional Responses": 50
+    }
     
     for item in items_db:
         score = user_responses[item["num"]]
@@ -193,31 +204,88 @@ if st.button("📊 Calculate & Generate Diagnostic Profile Report", type="primar
         if item["quad"] in quad_totals:
             quad_totals[item["quad"]] += score
 
-    col1, col2 = st.columns(2)
+    # Display Part 1: Section Summary Table
+    st.subheader("1️⃣ Sensory & Behavioral Section Breakdown")
+    sec_summary_data = []
+    for sec, score in sec_totals.items():
+        sec_summary_data.append({
+            "Sensory / Behavioral Section Category": sec,
+            "Child's Raw Score Total": f"{score}",
+            "Maximum Possible Score": f"/ {max_scores.get(sec, 0)}"
+        })
+    st.table(pd.DataFrame(sec_summary_data))
+
+    # Display Part 2: Quadrant Matrix Table
+    st.subheader("2️⃣ Sensory Pattern Quadrant Grid Placement")
     
-    with col1:
-        st.subheader("📋 Section Raw Score Breakdown")
-        for sec, score in sec_totals.items():
-            st.metric(label=sec, value=f"{score}")
+    def get_cutoff_status(quad, val):
+        cutoffs = {
+            "SK": [(0, 19, "Less Than Others"), (20, 47, "Just Like the Majority"), (48, 60, "More Than Others"), (61, 95, "Much More Than Others")],
+            "AV": [(0, 20, "Less Than Others"), (21, 46, "Just Like the Majority"), (47, 59, "More Than Others"), (60, 100, "Much More Than Others")],
+            "SN": [(0, 17, "Less Than Others"), (18, 42, "Just Like the Majority"), (43, 53, "More Than Others"), (54, 95, "Much More Than Others")],
+            "RG": [(0, 18, "Less Than Others"), (19, 43, "Just Like the Majority"), (44, 55, "More Than Others"), (56, 110, "Much More Than Others")]
+        }
+        for low, high, msg in cutoffs[quad]:
+            if low <= val <= high:
+                return msg
+        return "Out of Bounds"
 
-    with col2:
-        st.subheader("🎯 Quadrant Profile Diagnostic Patterns")
+    quad_summary_data = []
+    quad_names = {
+        "SK": "Seeking / Seeker (High Threshold, Active Strategy)",
+        "AV": "Avoiding / Avoider (Low Threshold, Active Strategy)",
+        "SN": "Sensitivity / Sensor (Low Threshold, Passive Strategy)",
+        "RG": "Registration / Bystander (High Threshold, Passive Strategy)"
+    }
+    quad_norms = {"SK": "20 - 47", "AV": "21 - 46", "SN": "18 - 42", "RG": "19 - 43"}
+
+    for quad, score in quad_totals.items():
+        status = get_cutoff_status(quad, score)
+        quad_summary_data.append({
+            "Sensory Quadrant Profile Pattern": quad_names[quad],
+            "Total Score": f"{score}",
+            "Normative Range Benchmark (Typical Majority)": quad_norms[quad],
+            "Clinical Placement Status": status
+        })
+    
+    st.dataframe(pd.DataFrame(quad_summary_data), use_container_width=True)
+    st.success(f"🎉 Scoring completely finalized for {child_name}!")
+
+    # --- AUTOMATIC GOOGLE SHEET DATABASE LOGGING ---
+    try:
+        from streamlit_gsheets import GSheetsConnection
         
-        def get_cutoff_status(quad, val):
-            cutoffs = {
-                "SK": [(0, 19, "Less Than Others"), (20, 47, "Just Like the Majority"), (48, 60, "More Than Others"), (61, 95, "Much More Than Others")],
-                "AV": [(0, 20, "Less Than Others"), (21, 46, "Just Like the Majority"), (47, 59, "More Than Others"), (60, 100, "Much More Than Others")],
-                "SN": [(0, 17, "Less Than Others"), (18, 42, "Just Like the Majority"), (43, 53, "More Than Others"), (54, 95, "Much More Than Others")],
-                "RG": [(0, 18, "Less Than Others"), (19, 43, "Just Like the Majority"), (44, 55, "More Than Others"), (56, 110, "Much More Than Others")]
-            }
-            for low, high, msg in cutoffs[quad]:
-                if low <= val <= high:
-                    return msg
-            return "Out of Bounds"
-
-        for quad, score in quad_totals.items():
-            quad_name = {"SK": "Seeking / Seeker", "AV": "Avoiding / Avoider", "SN": "Sensitivity / Sensor", "RG": "Registration / Bystander"}[quad]
-            status = get_cutoff_status(quad, score)
-            st.markdown(f"**{quad_name}:** `{score}` points → **{status}**")
-
-    st.success("Assessment Complete.")
+        # Connect to your Google Sheet securely
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        
+        # Read the existing database rows
+        existing_data = conn.read(worksheet="Sheet1", ttl=0)
+        
+        # Create a dictionary for the parent's new entry
+        new_row = {
+            "Timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Mobile Number": str(parent_input),
+            "Child Name": child_name,
+            "Auditory Total": sec_totals["Auditory Processing"],
+            "Visual Total": sec_totals["Visual Processing"],
+            "Touch Total": sec_totals["Touch Processing"],
+            "Movement Total": sec_totals["Movement Processing"],
+            "Body Position Total": sec_totals["Body Position Processing"],
+            "Oral Total": sec_totals["Oral Sensory Processing"],
+            "Conduct Total": sec_totals["Conduct Associated with SP"],
+            "Social Total": sec_totals["Social Emotional Responses"],
+            "Attentional Total": sec_totals["Attentional Responses"],
+            "Seeking Status": get_cutoff_status("SK", quad_totals["SK"]),
+            "Avoiding Status": get_cutoff_status("AV", quad_totals["AV"]),
+            "Sensitivity Status": get_cutoff_status("SN", quad_totals["SN"]),
+            "Registration Status": get_cutoff_status("RG", quad_totals["RG"])
+        }
+        
+        # Append the new submission to your database sheet
+        updated_df = pd.concat([existing_data, pd.DataFrame([new_row])], ignore_index=True)
+        conn.update(worksheet="Sheet1", data=updated_df)
+        
+        st.toast("💾 Results successfully saved to your master Google Sheet database!", icon="✅")
+        
+    except Exception as e:
+        st.info("ℹ️ Local sandbox/test mode active. To record submissions to a cloud spreadsheet, add your spreadsheet URL under [connections.gsheets] inside your Streamlit Dashboard Secrets panel.")
